@@ -1,0 +1,129 @@
+# Self-contained integration stack for pylakekeeper.
+#
+# Lakekeeper + Postgres + MinIO + Keycloak, wired for real OAuth2 client_credentials.
+# Adapted from the lakekeeper server repo's test compose; trimmed to what this client
+# needs (no kafka/nats/trino/spark/openfga; no STS nginx-split — that overlay only exists
+# to test the server's sts-endpoint override, which is not our concern).
+#
+# Host ports are pinned so the issuer of host-acquired tokens (localhost:30080) is known
+# in advance and can be added to Lakekeeper's accepted issuers.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  seaweedfs:
+    # SeaweedFS is the storage backend the lakekeeper examples standardize on; `mini` is its
+    # single-process dev mode (master+volume+filer+S3). `-bucket` pre-creates the bucket and the
+    # IAM config enables STS so Lakekeeper can vend short-lived credentials (what lance needs).
+    # 4.36+ includes an STS fix relevant to Lakekeeper vended credentials
+    # (lakekeeper/lakekeeper#1867).
+    image: chrislusf/seaweedfs:4.36
+    command:
+      - mini
+      - -dir=/data
+      - -bucket=examples
+      - -s3.config=/etc/seaweedfs/iam.json
+      - -s3.iam.config=/etc/seaweedfs/iam.json
+    volumes:
+      - ./seaweedfs/iam.json:/etc/seaweedfs/iam.json:ro
+    ports:
+      - "8333:8333"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8333/status"]
+      interval: 2s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "31080:8080"
+    healthcheck:
+      # Keycloak's distroless image has no curl/wget; use the /dev/tcp trick.
+      test:
+        - "CMD-SHELL"
+        - 'exec 3<>/dev/tcp/127.0.0.1/8080; echo -e "GET /realms/iceberg/.well-known/openid-configuration HTTP/1.1\r\nhost: 127.0.0.1\r\nConnection: close\r\n\r\n" >&3; grep -q jwks_uri <&3'
+      interval: 3s
+      timeout: 4s
+      retries: 40
+
+  migrate:
+    image: ${LAKEKEEPER_TEST__SERVER_IMAGE:-quay.io/lakekeeper/catalog:latest-main}
+    command: ["migrate"]
+    environment:
+      LAKEKEEPER__PG_ENCRYPTION_KEY: abc
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://postgres:postgres@db:5432/postgres
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+  lakekeeper:
+    image: ${LAKEKEEPER_TEST__SERVER_IMAGE:-quay.io/lakekeeper/catalog:latest-main}
+    command: ["serve"]
+    environment:
+      LAKEKEEPER__PG_ENCRYPTION_KEY: abc
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://postgres:postgres@db:5432/postgres
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://postgres:postgres@db:5432/postgres
+      # Server validates tokens against this issuer (internal hostname).
+      LAKEKEEPER__OPENID_PROVIDER_URI: http://keycloak:8080/realms/iceberg
+      # Tokens acquired by the test from the host are issued with this issuer; accept them too.
+      LAKEKEEPER__OPENID_ADDITIONAL_ISSUERS: http://localhost:31080/realms/iceberg
+    ports:
+      - "8182:8181"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8181/health || exit 1"]
+      interval: 3s
+      timeout: 4s
+      retries: 40
+
+  # One-shot runner for examples/_demo.py, in-network (so the vended storage endpoint
+  # resolves without rewriting). Profile-gated so it never starts during the test `up`.
+  # Driven by examples/run.sh; not part of the integration test stack.
+  example:
+    profiles: ["tools"]
+    image: python:3.12-slim
+    working_dir: /work
+    volumes:
+      - ../..:/work
+    environment:
+      LAKEKEEPER: http://lakekeeper:8181
+      OAUTH_TOKEN_URL: http://keycloak:8080/realms/iceberg/protocol/openid-connect/token
+      OAUTH_CLIENT_ID: spark
+      OAUTH_CLIENT_SECRET: 2OR3eRvYfSZzzZ16MlPd95jhLnOaLM52
+      PROJECT_ID: "00000000-0000-0000-0000-000000000000"
+      NAMESPACE: ai.test
+      TABLE: image_embeddings
+    command:
+      - sh
+      - -c
+      - "pip install -q . pylance pyarrow numpy && cd examples && python _demo.py"
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
