@@ -1,7 +1,9 @@
 # Running the examples
 
-`generic_tables_lance.py` reproduces the notebook flow: create a Lance generic table, load it
-with vended credentials, and write/read a dataset through `lance`.
+- **`generic_tables_lance.py`** — reproduces the notebook flow: create a Lance generic table, load
+  it with vended credentials, and write/read a dataset through `lance`.
+- **`dataset_images.py`** — `dataset` format (unstructured data): upload image files to the table's
+  vended location via `boto3` (the S3 case).
 
 ## 1. Install deps
 
@@ -53,10 +55,20 @@ curl -s -X POST "$LAKEKEEPER/catalog/v1/$WAREHOUSE_ID/namespaces" \
 
 ## 5. Run
 
+**Load the env, then run with the venv's Python** (not your system `python3` — the package and
+`pylance`/`pyarrow` wheels live in the venv; bare `python3` will `ModuleNotFoundError`):
+
 ```sh
-python examples/generic_tables_lance.py
+set -a; source examples/.env; set +a          # re-run this whenever you edit .env
+
+.venv/bin/python examples/generic_tables_lance.py   # Lance roundtrip
+.venv/bin/python examples/dataset_images.py         # upload images (dataset format)
 ```
 
-> Want the whole thing turnkey (stack + bootstrap + warehouse + namespace + run) with one command?
-> That's essentially what `tests/integration/` already automates — say the word and I'll add an
-> `examples/run.sh` that reuses it.
+Or `source .venv/bin/activate` once, then plain `python examples/<file>.py`.
+
+## Turnkey alternative (no manual setup)
+
+`./examples/run.sh` brings up a self-contained stack (Lakekeeper + Postgres + SeaweedFS + Keycloak),
+bootstraps it, creates the warehouse + namespace, and runs the example **in-network** — no env file,
+no warehouse lookup, no Docker port juggling. Tear down with `./examples/run.sh --down`.
