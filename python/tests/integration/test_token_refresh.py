@@ -25,9 +25,7 @@ def test_token_refresh_against_real_keycloak(stack):
         client_secret=stack.client_secret,
         refresh_margin=24 * 3600,  # >> token lifespan -> always re-acquire
     )
-    with Client(
-        stack.base_url, stack.warehouse_id, auth, project_id=stack.project_id
-    ) as client:
+    with Client(stack.base_url, stack.warehouse_id, auth, project_id=stack.project_id) as client:
         # A real catalog operation succeeds with the freshly acquired token.
         list(client.generic_tables.list(stack.namespace))
 
