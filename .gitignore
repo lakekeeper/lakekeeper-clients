@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+.coverage.*
+reports/
+.tox/
+.nox/
+htmlcov/
+.venv/
+venv/
+.python-version
+.ruff_cache/
+.mypy_cache/
+
+# Java / Gradle / Maven
+target/
+.gradle/
+build/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+.classpath
+.project
+.settings/
+bin/
+out/
+hs_err_pid*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.fleet/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local dev
+.env
+.envrc
+local/
