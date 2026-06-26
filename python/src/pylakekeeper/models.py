@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from .lance import iceberg_creds_to_lance
+from .lance import iceberg_creds_to_fsspec, iceberg_creds_to_lance
 
 
 def _kebab(name: str) -> str:
@@ -58,6 +58,21 @@ class LoadGenericTableResponse(_WireModel):
         """
         creds = [c.model_dump() for c in (self.storage_credentials or [])]
         return iceberg_creds_to_lance(creds, self.config)
+
+    @property
+    def fsspec_kwargs(self) -> dict[str, object]:
+        """Vended credentials translated to ``fsspec.filesystem("s3", **kwargs)``.
+
+        Pass directly to ``fsspec.filesystem()``::
+
+            resp = lk.generic_tables.load(ns, name, vended=True)
+            fs = fsspec.filesystem("s3", **resp.fsspec_kwargs)
+            files = fs.ls(resp.location)
+
+        Empty if the table was loaded without ``vended=True``.
+        """
+        creds = [c.model_dump() for c in (self.storage_credentials or [])]
+        return iceberg_creds_to_fsspec(creds, self.config)
 
 
 class GenericTableIdentifier(_WireModel):
