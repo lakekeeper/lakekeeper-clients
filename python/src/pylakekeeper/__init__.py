@@ -26,7 +26,7 @@ from .errors import (
     NotFoundError,
 )
 from .formats import GenericTableFormat
-from .lance import ICEBERG_TO_LANCE, iceberg_creds_to_lance
+from .lance import ICEBERG_TO_LANCE, iceberg_creds_to_fsspec, iceberg_creds_to_lance
 from .models import (
     GenericTableData,
     GenericTableIdentifier,
@@ -59,6 +59,7 @@ __all__ = [
     # helpers
     "ICEBERG_TO_LANCE",
     "iceberg_creds_to_lance",
+    "iceberg_creds_to_fsspec",
     "encode_namespace",
     "join_namespace",
     "parse_namespace",

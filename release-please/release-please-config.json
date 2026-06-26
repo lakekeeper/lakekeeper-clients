@@ -5,6 +5,19 @@
             "release-type": "python",
             "package-name": "pylakekeeper",
             "component": "python"
+        },
+        "java": {
+            "release-type": "java",
+            "component": "java",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/gradle.properties",
+                    "patterns": [
+                        ["^version=.*$", "version=${version}"]
+                    ]
+                }
+            ]
         }
     },
     "include-component-in-tag": true,
