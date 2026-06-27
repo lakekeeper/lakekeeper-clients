@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.1.0...python-v0.2.0) (2026-06-26)
+
+
+### Features
+
+* **java:** Java client + Flink streaming example ([f3e6362](https://github.com/lakekeeper/lakekeeper-clients/commit/f3e6362ed943967de85af87f39dc15bcca452b9f))
+* **java:** Java client + Flink streaming example ([8949727](https://github.com/lakekeeper/lakekeeper-clients/commit/894972758864ade5ba7731e9b136d9d95147d704))
+
 ## 0.1.0 (2026-06-25)
 
 
