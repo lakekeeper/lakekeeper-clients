@@ -15,7 +15,14 @@ Iceberg REST client.
 
 from __future__ import annotations
 
-from .auth import Auth, ClientCredentials, StaticToken
+from .auth import (
+    Auth,
+    AuthorizationCodeFlow,
+    ClientCredentials,
+    DeviceCodeFlow,
+    DeviceCodePrompt,
+    StaticToken,
+)
 from .client import Client
 from .errors import (
     AuthError,
@@ -42,6 +49,9 @@ __all__ = [
     "Auth",
     "StaticToken",
     "ClientCredentials",
+    "DeviceCodeFlow",
+    "DeviceCodePrompt",
+    "AuthorizationCodeFlow",
     # errors
     "LakekeeperError",
     "LakekeeperHTTPError",
