@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.2.0...python-v0.3.0) (2026-07-17)
+
+
+### Features
+
+* interactive OAuth2 flows (Device Code + Authorization Code/PKCE) for Python & Java ([b022689](https://github.com/lakekeeper/lakekeeper-clients/commit/b022689084326c55c8ae86025ec2d4fbc29624fe))
+* **python:** add DeviceCodeFlow and AuthorizationCodeFlow (PKCE) ([8ae2b3a](https://github.com/lakekeeper/lakekeeper-clients/commit/8ae2b3ad2bcd656c3be2eece18c398cf76354879))
+
+
+### Documentation
+
+* **python:** add per-auth-flow example notebooks ([37b84cb](https://github.com/lakekeeper/lakekeeper-clients/commit/37b84cb752201e081bbecdb8d252fa094f65990a))
+
 ## [0.2.0](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.1.0...python-v0.2.0) (2026-06-26)
 
 
