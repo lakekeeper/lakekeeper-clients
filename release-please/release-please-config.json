@@ -8,6 +8,7 @@
         },
         "java": {
             "release-type": "java",
+            "skip-snapshot": true,
             "component": "java",
             "extra-files": [
                 {
