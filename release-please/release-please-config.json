@@ -8,16 +8,7 @@
         },
         "java": {
             "release-type": "simple",
-            "component": "java",
-            "extra-files": [
-                {
-                    "type": "generic",
-                    "path": "gradle.properties",
-                    "patterns": [
-                        ["^version=.*$", "version=${version}"]
-                    ]
-                }
-            ]
+            "component": "java"
         }
     },
     "include-component-in-tag": true,
