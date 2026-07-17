@@ -7,8 +7,7 @@
             "component": "python"
         },
         "java": {
-            "release-type": "java",
-            "skip-snapshot": true,
+            "release-type": "simple",
             "component": "java",
             "extra-files": [
                 {
