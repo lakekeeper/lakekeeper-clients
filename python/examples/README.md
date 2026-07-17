@@ -5,6 +5,19 @@
 - **`dataset_images.py`** — `dataset` format (unstructured data): upload image files to the table's
   vended location via `boto3` (the S3 case).
 
+### Notebooks — one per auth flow, each a different table format
+
+Each notebook signs in with a different OAuth2 flow, creates a generic table, round-trips real
+data, and ends by proving the session survives access-token expiry via silent `refresh_token`
+renewal:
+
+| Notebook | Auth flow | Format | Data write |
+| --- | --- | --- | --- |
+| `auth_devicecode_lance.ipynb` | Device Code (RFC 8628) | Lance | vended S3 via `lance` |
+| `auth_authcode_vortex.ipynb` | Authorization Code + PKCE (RFC 7636) | Vortex | local `.vortex` (see note in nb) |
+| `auth_clientcredentials_delta.ipynb` | `client_credentials` (service) | Delta | vended S3 via `deltalake` |
+| `auth_devicecode_hdf5.ipynb` | Device Code (RFC 8628) | `dataset` (HDF5) | vended S3 via `h5py` + `boto3` |
+
 ## 1. Install deps
 
 ```sh
@@ -66,6 +79,27 @@ set -a; source examples/.env; set +a          # re-run this whenever you edit .e
 ```
 
 Or `source .venv/bin/activate` once, then plain `python examples/<file>.py`.
+
+## Running the notebooks
+
+The notebooks import `pylakekeeper`, so their kernel must be the venv where it's installed —
+**not** whatever Python your Jupyter/VS Code happens to launch. Register the venv as a kernel
+once, then select **“Python (pylakekeeper)”** in the notebook's kernel picker:
+
+```sh
+cd python
+pip install -e '.[examples]'    # pylakekeeper + jupyter + lance/vortex/deltalake + pyarrow/numpy
+python -m ipykernel install --user --name pylakekeeper --display-name "Python (pylakekeeper)"
+```
+
+> **`ipykernel` must be `<7`.** The `examples` extra pins it: ipykernel 7.x writes a kernelspec
+> that negotiates CurveZMQ encryption, which several frontends (VS Code's Jupyter extension,
+> older `jupyter_client`) can't attach to — the kernel boots but never connects, i.e. it looks
+> like "the kernel won't start." If you hit that, `pip install 'ipykernel<7'` and re-run the
+> `ipykernel install` line above, then reload the window and reselect the kernel.
+
+`ModuleNotFoundError: No module named 'pylakekeeper'` in a notebook means the wrong kernel is
+selected — switch to "Python (pylakekeeper)".
 
 ## Turnkey alternative (no manual setup)
 
