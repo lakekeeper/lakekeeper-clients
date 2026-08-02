@@ -8,16 +8,40 @@ build-backend = "hatchling.build"
 name = "pylakekeeper"
 version = "0.3.0"
 description = "Official Lakekeeper client — generic-tables API and OAuth2 auth (static token / client_credentials with refresh)"
-readme = "../README.md"
+# Must be a path *inside* python/. A parent-relative path ("../README.md") makes hatchling
+# emit an sdist member that escapes the archive root, which pip refuses to unpack.
+readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{ name = "Lakekeeper" }]
-keywords = ["lakekeeper", "iceberg", "lance", "catalog", "rest"]
+keywords = [
+    "lakekeeper",
+    "iceberg",
+    "apache-iceberg",
+    "iceberg-rest-catalog",
+    "lance",
+    "delta-lake",
+    "catalog",
+    "data-lakehouse",
+    "rest",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Database",
+    "Topic :: Database :: Front-Ends",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dependencies = [
     # Standalone client: only generic-tables + auth. No pyiceberg — client_credentials
@@ -56,11 +80,26 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lakekeeper/lakekeeper-clients"
+Homepage = "https://docs.lakekeeper.io/"
+Documentation = "https://docs.lakekeeper.io/"
 Repository = "https://github.com/lakekeeper/lakekeeper-clients"
+Issues = "https://github.com/lakekeeper/lakekeeper-clients/issues"
+Changelog = "https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pylakekeeper"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the sdist to what's needed to build and test. Everything listed must live under
+# python/ — see the `readme` note above.
+include = [
+    "src/",
+    "tests/",
+    "examples/",
+    "README.md",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
 
 [tool.ruff]
 line-length = 100

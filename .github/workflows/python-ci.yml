@@ -46,6 +46,54 @@ jobs:
           name: test-reports-py${{ matrix.python-version }}
           path: python/reports/
 
+  package:
+    # Guards the distribution itself, not the code. 0.1.0 and 0.3.0 both shipped an sdist
+    # containing `../README.md` — a member escaping the archive root — which pip refuses to
+    # unpack, so every source install and every piwheels build failed while the wheel
+    # looked fine. Only an actual install *from the sdist* catches that.
+    name: Package (sdist + wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+
+      - name: Reject sdist members outside the archive root
+        run: |
+          bad=$(tar tzf dist/*.tar.gz | grep -E '^/|(^|/)\.\./' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::sdist contains paths escaping the archive root:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "sdist paths OK"
+
+      - name: Validate metadata rendering
+        run: twine check --strict dist/*
+
+      - name: Install from the sdist and import
+        # --no-binary pylakekeeper forces the sdist path; deps still use wheels.
+        run: |
+          python -m venv /tmp/sdist-venv
+          /tmp/sdist-venv/bin/pip install --no-cache-dir --no-binary pylakekeeper dist/*.tar.gz
+          /tmp/sdist-venv/bin/python -c "import pylakekeeper; print(pylakekeeper.Client)"
+
+      - name: Install from the wheel and import
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install --no-cache-dir dist/*.whl
+          /tmp/wheel-venv/bin/python -c "import pylakekeeper; print(pylakekeeper.Client)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: python/dist/
+
   integration:
     # Full stack (Lakekeeper + Postgres + MinIO + Keycloak) via docker compose, real OAuth.
     runs-on: ubuntu-latest
