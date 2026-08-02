@@ -48,10 +48,12 @@ lk.generic_tables.create("ai.models", "embeddings", format="lance")
 resp = lk.generic_tables.load("ai.models", "embeddings", vended=True)
 
 import lance
+
 lance.write_dataset(data, resp.location, storage_options=resp.lance_storage_options)
 
 # ...or open the same location as an fsspec filesystem
 import fsspec
+
 fs = fsspec.filesystem("s3", **resp.fsspec_kwargs)
 print(fs.ls(resp.location))
 ```
