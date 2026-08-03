@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.3.0...python-v0.3.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* **python:** ship an installable sdist and improve PyPI discoverability ([#18](https://github.com/lakekeeper/lakekeeper-clients/issues/18)) ([959674b](https://github.com/lakekeeper/lakekeeper-clients/commit/959674b2b6d067fe8ef55e77a32762a888583ac2))
+
 ## [0.3.0](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.2.0...python-v0.3.0) (2026-07-17)
 
 

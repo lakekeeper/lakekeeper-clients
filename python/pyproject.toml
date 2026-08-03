@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 # Distribution and import name are both `pylakekeeper` (the bare `lakekeeper` name on PyPI
 # belongs to an unrelated project). pip install pylakekeeper -> import pylakekeeper.
 name = "pylakekeeper"
-version = "0.3.0"
+version = "0.3.1"
 description = "Official Lakekeeper client — generic-tables API and OAuth2 auth (static token / client_credentials with refresh)"
 # Must be a path *inside* python/. A parent-relative path ("../README.md") makes hatchling
 # emit an sdist member that escapes the archive root, which pip refuses to unpack.
