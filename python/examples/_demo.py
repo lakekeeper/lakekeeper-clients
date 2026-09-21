@@ -1,7 +1,7 @@
 """Provision a fresh warehouse + namespace, then run generic_tables_lance — in-network.
 
 This is the turnkey entrypoint used by examples/run.sh. It runs INSIDE the integration
-compose network, where keycloak/lakekeeper/seaweedfs resolve by service name and the
+compose network, where keycloak/lakekeeper/silo resolve by service name and the
 storage endpoint Lakekeeper vends is actually reachable — so the example needs no
 endpoint-rewriting hacks and exercises the real flow end to end.
 
@@ -36,7 +36,7 @@ def _token() -> str:
 
 
 def provision() -> str:
-    """Bootstrap the server and ensure a SeaweedFS warehouse + namespace exist; return its id."""
+    """Bootstrap the server and ensure a Silo (S3) warehouse + namespace exist; return its id."""
     headers = {"Authorization": f"Bearer {_token()}", "x-project-id": PROJECT_ID}
 
     httpx.post(
@@ -46,7 +46,7 @@ def provision() -> str:
         timeout=15,
     )  # idempotent: 400 if already bootstrapped
 
-    endpoint = "http://seaweedfs:8333"
+    endpoint = "http://silo:9000"
     body = {
         "warehouse-name": WAREHOUSE_NAME,
         "storage-profile": {
@@ -56,7 +56,7 @@ def provision() -> str:
             "region": "local-01",
             "endpoint": endpoint,
             "sts-endpoint": endpoint,
-            "sts-role-arn": "arn:aws:iam::000000000000:role/LakekeeperVendedRole",
+            "assume-role-arn": None,
             "path-style-access": True,
             "flavor": "s3-compat",
             "sts-enabled": True,
@@ -64,8 +64,8 @@ def provision() -> str:
         "storage-credential": {
             "type": "s3",
             "credential-type": "access-key",
-            "access-key-id": "seaweedfs-root-user",
-            "secret-access-key": "seaweedfs-root-password",
+            "access-key-id": "silo-root-user",
+            "secret-access-key": "silo-root-password",
         },
     }
     r = httpx.post(f"{LAKEKEEPER}/management/v1/warehouse", headers=headers, json=body, timeout=30)

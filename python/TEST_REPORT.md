@@ -19,7 +19,7 @@ _Generated 2026-06-25. Regenerate with the command in [Reproduce](#reproduce)._
 |---|---|
 | Container engine | podman 5.6 (`podman compose` → docker-compose v2) |
 | Lakekeeper server | `quay.io/lakekeeper/catalog:latest-main` |
-| Storage | SeaweedFS **4.36** (S3 + IAM/STS), per [lakekeeper#1867](https://github.com/lakekeeper/lakekeeper/pull/1867) |
+| Storage | **Silo** `RELEASE.2026-09-03T13-18-01Z` — a maintained MinIO fork serving S3 + STS AssumeRole from one process |
 | Identity provider | Keycloak 26.0.7, realm `iceberg` |
 | Database | Postgres 17 |
 
@@ -29,7 +29,7 @@ _Generated 2026-06-25. Regenerate with the command in [Reproduce](#reproduce)._
 driven via `monkeypatch`. Runs anywhere in < 0.2s. Deselected marker: none — this is the default
 `pytest tests/` run.
 
-**Integration (`-m integration`):** brings up the full stack (Lakekeeper + Postgres + SeaweedFS +
+**Integration (`-m integration`):** brings up the full stack (Lakekeeper + Postgres + Silo +
 Keycloak) via docker/podman compose in an isolated, auto-torn-down project, and drives the SDK
 through **real OAuth2** and **real vended STS credentials**.
 
@@ -73,7 +73,7 @@ paged `list` following `next-page-token`; 404 → `NotFoundError`; **401 → inv
 ### Integration — `tests/integration/` (2)
 | Test | Proves |
 |---|---|
-| `test_roundtrip::test_generic_tables_vended_lance_roundtrip` | End-to-end through real Keycloak + SeaweedFS: create → load-vended (**real STS creds**) → **lance write + read** → list → drop. |
+| `test_roundtrip::test_generic_tables_vended_lance_roundtrip` | End-to-end through real Keycloak + Silo: create → load-vended (**real STS creds**) → **lance write + read** → list → drop. |
 | `test_token_refresh::test_token_refresh_against_real_keycloak` | A **real** refresh round-trip: Keycloak issues a genuinely new token and Lakekeeper accepts it for a live catalog op. |
 
 ## Reproduce

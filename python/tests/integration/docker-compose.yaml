@@ -1,6 +1,6 @@
 # Self-contained integration stack for pylakekeeper.
 #
-# Lakekeeper + Postgres + MinIO + Keycloak, wired for real OAuth2 client_credentials.
+# Lakekeeper + Postgres + Silo (S3) + Keycloak, wired for real OAuth2 client_credentials.
 # Adapted from the lakekeeper server repo's test compose; trimmed to what this client
 # needs (no kafka/nats/trino/spark/openfga; no STS nginx-split — that overlay only exists
 # to test the server's sts-endpoint override, which is not our concern).
@@ -21,29 +21,39 @@ services:
       timeout: 3s
       retries: 30
 
-  seaweedfs:
-    # SeaweedFS is the storage backend the lakekeeper examples standardize on; `mini` is its
-    # single-process dev mode (master+volume+filer+S3). `-bucket` pre-creates the bucket and the
-    # IAM config enables STS so Lakekeeper can vend short-lived credentials (what lance needs).
-    # 4.36+ includes an STS fix relevant to Lakekeeper vended credentials
-    # (lakekeeper/lakekeeper#1867).
-    image: chrislusf/seaweedfs:4.36
-    command:
-      - mini
-      - -dir=/data
-      - -bucket=examples
-      - -s3.config=/etc/seaweedfs/iam.json
-      - -s3.iam.config=/etc/seaweedfs/iam.json
-    volumes:
-      - ./seaweedfs/iam.json:/etc/seaweedfs/iam.json:ro
+  silo:
+    # Silo is a maintained fork of MinIO (MinIO pulled its own images from Docker Hub).
+    # It serves the S3 API plus the STS AssumeRole endpoint from a single process, which
+    # is all Lakekeeper needs to vend short-lived credentials — no IAM config file, and
+    # no assumable role ARN on the warehouse. Matches the lakekeeper server repo's stacks.
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: silo-root-user
+      MINIO_ROOT_PASSWORD: silo-root-password
     ports:
-      - "8333:8333"
+      # Host 9100, not 9000: Lakekeeper's own metrics port defaults to 9000, so a
+      # natively-running server would take it and S3 calls would hit /metrics instead.
+      - "9100:9000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8333/status"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 2s
       timeout: 10s
       retries: 30
-      start_period: 10s
+      start_period: 15s
+
+  create-bucket:
+    # Silo starts with no buckets, so create the one the warehouse points at.
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    depends_on:
+      silo:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        mc alias set local http://silo:9000 silo-root-user silo-root-password &&
+        mc mb --ignore-existing local/examples
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.7
@@ -93,8 +103,8 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+      create-bucket:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8181/health || exit 1"]
       interval: 3s
@@ -125,5 +135,5 @@ services:
     depends_on:
       lakekeeper:
         condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+      create-bucket:
+        condition: service_completed_successfully
