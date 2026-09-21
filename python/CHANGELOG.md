@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.3.1...python-v0.4.0) (2026-09-21)
+
+
+### Features
+
+* **python:** governed agent memory and skills, object I/O, Iceberg interop ([#20](https://github.com/lakekeeper/lakekeeper-clients/issues/20)) ([aec3f81](https://github.com/lakekeeper/lakekeeper-clients/commit/aec3f8195d22ca431cbdd40e04b25e058a2a6baa))
+
 ## [0.3.1](https://github.com/lakekeeper/lakekeeper-clients/compare/python-v0.3.0...python-v0.3.1) (2026-08-03)
 
 
