@@ -41,6 +41,7 @@ from .models import (
     LoadGenericTableResponse,
     StorageCredential,
 )
+from .objects import ObjectStore, object_store_for
 from .url import encode_namespace, join_namespace, parse_namespace
 
 __all__ = [
@@ -67,6 +68,8 @@ __all__ = [
     "StorageCredential",
     "GenericTableFormat",
     # helpers
+    "ObjectStore",
+    "object_store_for",
     "ICEBERG_TO_LANCE",
     "iceberg_creds_to_lance",
     "iceberg_creds_to_fsspec",

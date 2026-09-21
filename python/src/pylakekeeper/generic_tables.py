@@ -21,9 +21,26 @@ _VENDED_HEADER = {"X-Iceberg-Access-Delegation": "vended-credentials"}
 class GenericTables:
     """CRUD for Lakekeeper generic (non-Iceberg) tables, scoped to one warehouse."""
 
-    def __init__(self, transport: Transport, warehouse: str) -> None:
+    def __init__(
+        self,
+        transport: Transport,
+        warehouse: str,
+        storage_overrides: Mapping[str, str] | None = None,
+    ) -> None:
         self._t = transport
         self._warehouse = warehouse
+        self._storage_overrides = dict(storage_overrides) if storage_overrides else None
+
+    def _apply_overrides(self, resp: LoadGenericTableResponse) -> LoadGenericTableResponse:
+        """Fold the client's storage overrides into the response's config.
+
+        ``config`` takes precedence over the credential entries when the two are merged,
+        so an override placed here reaches every downstream shape — ``lance_storage_options``,
+        ``fsspec_kwargs`` and ``objects()`` — without each of them knowing about it.
+        """
+        if self._storage_overrides:
+            resp.config = {**(resp.config or {}), **self._storage_overrides}
+        return resp
 
     def _collection_path(self, namespace: NamespaceLike) -> str:
         return (
@@ -57,7 +74,7 @@ class GenericTables:
         if properties:
             body["properties"] = dict(properties)
         resp = self._t.request("POST", self._collection_path(namespace), json=body)
-        return LoadGenericTableResponse.model_validate(resp.json())
+        return self._apply_overrides(LoadGenericTableResponse.model_validate(resp.json()))
 
     def load(
         self,
@@ -69,7 +86,7 @@ class GenericTables:
         """Load a generic table. With ``vended=True``, request inline STS credentials."""
         headers = _VENDED_HEADER if vended else None
         resp = self._t.request("GET", self._table_path(namespace, name), headers=headers)
-        return LoadGenericTableResponse.model_validate(resp.json())
+        return self._apply_overrides(LoadGenericTableResponse.model_validate(resp.json()))
 
     def list(
         self,
