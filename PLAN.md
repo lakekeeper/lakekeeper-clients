@@ -39,9 +39,11 @@ c.generic_tables.drop("ai.test", "image_embeddings")
 
 - **No Rust core / no UniFFI.** Language-native implementations. (A "Rust core + UniFFI in the
   monorepo" brief was considered and rejected 2026-06-13 — overkill for a generic-tables client.)
-- **Standalone Python, no pyiceberg dependency.** Scope is only generic-tables (which pyiceberg
-  doesn't model), so `client_credentials` refresh is hand-rolled (~50 LOC). Deps: `httpx` +
-  `pydantic`. An optional `iceberg_catalog()` helper behind a `[iceberg]` extra is a *maybe*, later.
+- **Standalone Python, no pyiceberg dependency *in core*.** Scope is only generic-tables (which
+  pyiceberg doesn't model), so `client_credentials` refresh is hand-rolled (~50 LOC). Core deps stay
+  `httpx` + `pydantic`. **Promoted 2026-09-14:** `Client.iceberg_catalog()` now ships behind the
+  `[iceberg]` extra — agent memory needs both surfaces (objects in a `dataset` table, an index in an
+  Iceberg table) and configuring auth twice, refreshing twice, was the thing to avoid.
 - **Auth v1 (MVP): `StaticToken` and `ClientCredentials` (auto-refresh).** device_code / PKCE are
   deferred.
 - **Python package**: `pylakekeeper` on PyPI — **both the install and import name** (matches the
@@ -120,9 +122,11 @@ python/src/lakekeeper/
 - Note: 24 unit tests green; ruff + mypy clean. Floor bumped to **Python 3.10** (3.9 is EOL).
 
 #### PR M1-4 — integration test + smoke  ✅ (pending merge)
-- [x] Full-stack docker-compose harness in `tests/integration/` (Lakekeeper + Postgres + SeaweedFS +
-      Keycloak), self-contained — vendored realm.json + seaweedfs iam.json, no kafka/nats/trino/spark/openfga.
-- [x] Storage = **SeaweedFS 4.36** (matches lakekeeper examples; STS authorized via role trust policy,
+- [x] Full-stack docker-compose harness in `tests/integration/` (Lakekeeper + Postgres + Silo +
+      Keycloak), self-contained — vendored realm.json, no kafka/nats/trino/spark/openfga.
+- [x] Storage = **Silo** (maintained MinIO fork; matches the lakekeeper server repo after
+      MinIO pulled its Docker Hub images). S3 + STS AssumeRole from one process, so no IAM
+      config file and `assume-role-arn: null`. Previously SeaweedFS 4.36 (STS via role trust policy,
       no `Admin`/`readOnly` override — per lakekeeper#1867).
 - [x] Real OAuth: `client_credentials` (Keycloak `spark` SA) → bootstrap → STS warehouse →
       `generic_tables` create/load-vended/list/drop → **lance write+read roundtrip** with vended STS
@@ -130,8 +134,10 @@ python/src/lakekeeper/
 - [x] Engine-agnostic (`docker` or `podman compose`); marked `integration`, deselected from the unit
       run; CI `integration` job added. Published image confirmed: `quay.io/lakekeeper/catalog:latest-main`.
 - [x] Test report: `TEST_REPORT.md` + CI coverage/JUnit artifacts. 27 tests pass, **96% coverage**.
-- Notes: host ports 8182/31080/8333 (avoid collisions); the vended `seaweedfs:8333` endpoint is
-  rewritten to the host-reachable address in-test (server vends the docker-internal hostname).
+- Notes: host ports 8182/31080/**9100** (Silo's S3 is on host 9100, not 9000 — Lakekeeper's own
+  metrics port defaults to 9000, so a natively-running server takes it and S3 calls land on
+  `/metrics`). The vended `silo:9000` endpoint is rewritten to the host-reachable address via
+  `Client(storage_overrides=...)` (the server vends the docker-internal hostname).
 
 #### PR M1-5 — publish 0.1.0 as `pylakekeeper`
 - [ ] Register `pylakekeeper` on TestPyPI + PyPI; configure Trusted Publishing (GitHub OIDC, no token).
@@ -206,8 +212,11 @@ Pulled out of the active plan on 2026-06-13 to keep the MVP small. Promote back 
 - **Auth**: device_code flow, authorization_code + PKCE, disk token cache at `~/.lakekeeper/credentials`.
 - **Admin endpoints**: `/management/v1/warehouse` + `/project` (the notebook's `ensure_warehouse`).
   Until then, examples assume the warehouse exists.
-- **Iceberg interop**: optional `Client.iceberg_catalog()` behind the `[iceberg]` extra (pyiceberg)
-  / iceberg-java `RESTCatalog` factory.
+- ~~**Iceberg interop (Python)**: optional `Client.iceberg_catalog()` behind the `[iceberg]` extra.~~
+  **Promoted and shipped** — `src/pylakekeeper/iceberg.py`. A `SharedAuthManager` bridges this
+  client's `Auth` into pyiceberg's `AuthManager` extension point (both are `auth_header() -> str |
+  None`), read per request so a refreshed token reaches pyiceberg with no reconfiguration. The
+  iceberg-java `RESTCatalog` factory is still open.
 - **Conformance suite**: shared `conformance/scenarios/*.yaml` run by both Python and Java runners.
 - **Docs site** (mkdocs), `rename` on generic-tables, async Python surface.
 
