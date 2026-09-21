@@ -128,11 +128,28 @@ python_version = "3.10"
 strict = true
 files = ["src"]
 
-# Optional storage SDKs used by objects.py — no stubs / py.typed, and not installed
-# in every environment. They are isolated behind lazy imports and typed as Any.
+# Third-party libraries reached only through lazy imports and typed as Any: storage
+# SDKs, and the columnar stack behind the agents extra. Skipping them is not laziness
+# about our own types — `strict` still applies to everything in src/.
+#
+# `follow_imports = "skip"` as well as `ignore_missing_imports`, because the problem is
+# not only absent stubs. numpy ships stubs that use `type` statements, which are 3.12+
+# syntax, while this config pins python_version to the package floor of 3.10 — so mypy
+# parses them and reports a syntax error in someone else's file. Which of these two
+# failures you get depends on the versions that happen to resolve, so it differs
+# between a developer's machine and CI.
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*", "azure.*", "google.*"]
+module = [
+    "boto3.*",
+    "botocore.*",
+    "azure.*",
+    "google.*",
+    "pyarrow.*",
+    "lance.*",
+    "numpy.*",
+]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
