@@ -1,6 +1,6 @@
 """Integration fixtures: bring up the full stack and prepare a warehouse + namespace.
 
-Brings up Lakekeeper + Postgres + MinIO + Keycloak via docker compose, then (using raw
+Brings up Lakekeeper + Postgres + Silo (S3) + Keycloak via docker compose, then (using raw
 HTTP, since the admin API is not part of the SDK) acquires a real client_credentials
 token, bootstraps the server, and creates an STS-enabled MinIO warehouse and a namespace.
 
@@ -35,11 +35,14 @@ CLIENT_ID = "spark"
 CLIENT_SECRET = "2OR3eRvYfSZzzZ16MlPd95jhLnOaLM52"
 DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000000"
 
-# SeaweedFS S3 is reachable as `seaweedfs:8333` inside the compose network (what the server
-# vends) but as `localhost:8333` from the host (where lance runs); tests rewrite between them.
-STORAGE_INTERNAL_HOST = "seaweedfs:8333"
-STORAGE_HOST = "localhost:8333"
-STORAGE_BUCKET = "examples"  # pre-created by the seaweedfs `-bucket` flag
+# Silo's S3 API is `silo:9000` inside the compose network (what the server vends) but
+# `localhost:9000` from the host (where lance and boto3 run); tests rewrite between them
+# via Client(storage_overrides=...).
+STORAGE_INTERNAL_HOST = "silo:9000"
+STORAGE_HOST = "localhost:9100"
+STORAGE_BUCKET = "examples"  # created by the `create-bucket` one-shot service
+STORAGE_ACCESS_KEY = "silo-root-user"
+STORAGE_SECRET_KEY = "silo-root-password"
 
 
 @dataclass
@@ -102,7 +105,9 @@ def _bootstrap_and_provision() -> Stack:
     if r.status_code not in (200, 204, 400):  # 400 = already bootstrapped
         r.raise_for_status()
 
-    # Create an STS-enabled SeaweedFS warehouse (mirrors examples/minimal).
+    # Create an STS-enabled Silo warehouse (mirrors examples/minimal).
+    # Silo serves S3 and STS AssumeRole from one process, so endpoint == sts-endpoint
+    # and no assumable role ARN is needed.
     endpoint = f"http://{STORAGE_INTERNAL_HOST}"
     warehouse_body = {
         "warehouse-name": "itest",
@@ -113,7 +118,7 @@ def _bootstrap_and_provision() -> Stack:
             "region": "local-01",
             "endpoint": endpoint,
             "sts-endpoint": endpoint,
-            "sts-role-arn": "arn:aws:iam::000000000000:role/LakekeeperVendedRole",
+            "assume-role-arn": None,
             "path-style-access": True,
             "flavor": "s3-compat",
             "sts-enabled": True,
@@ -121,8 +126,8 @@ def _bootstrap_and_provision() -> Stack:
         "storage-credential": {
             "type": "s3",
             "credential-type": "access-key",
-            "access-key-id": "seaweedfs-root-user",
-            "secret-access-key": "seaweedfs-root-password",
+            "access-key-id": STORAGE_ACCESS_KEY,
+            "secret-access-key": STORAGE_SECRET_KEY,
         },
     }
     r = httpx.post(

@@ -52,6 +52,17 @@ dependencies = [
 
 [project.optional-dependencies]
 lance = ["pylance>=0.16"]
+# Object I/O for `dataset`-format tables (LoadGenericTableResponse.objects()).
+# One extra per storage backend; the core install needs none of them.
+s3 = ["boto3>=1.34"]
+azure = ["azure-storage-blob>=12.19"]
+gcs = ["google-cloud-storage>=2.14"]
+# Governed agent memory + skills (pylakekeeper.agents). Preview surface.
+# Objects + vectors only. The optional memory index additionally needs [iceberg]:
+#   pip install 'pylakekeeper[agents,iceberg]'
+agents = ["pylance>=0.16", "pyarrow>=15", "boto3>=1.34"]
+# The LangGraph BaseStore adapter (pylakekeeper.agents.langgraph).
+langgraph = ["langgraph>=0.2"]
 # Optional Iceberg-catalog helper, if a user wants the standard Iceberg surface too.
 iceberg = ["pyiceberg>=0.10.0"]
 # Everything the example scripts + notebooks need to round-trip real data.
@@ -77,6 +88,10 @@ dev = [
     "pyarrow>=15",
     # examples/dataset_images.py uploads to S3 with boto3.
     "boto3>=1.34",
+    # Client.iceberg_catalog() interop test.
+    "pyiceberg>=0.10.0",
+    # The LangGraph BaseStore adapter.
+    "langgraph>=0.2",
 ]
 
 [project.urls]
@@ -112,6 +127,32 @@ select = ["E", "F", "I", "UP", "B", "W"]
 python_version = "3.10"
 strict = true
 files = ["src"]
+
+# Third-party libraries reached only through lazy imports and typed as Any: storage
+# SDKs, and the columnar stack behind the agents extra. Skipping them is not laziness
+# about our own types — `strict` still applies to everything in src/.
+#
+# `follow_imports = "skip"` as well as `ignore_missing_imports`, because the problem is
+# not only absent stubs. numpy ships stubs that use `type` statements, which are 3.12+
+# syntax, while this config pins python_version to the package floor of 3.10 — so mypy
+# parses them and reports a syntax error in someone else's file. Which of these two
+# failures you get depends on the versions that happen to resolve, so it differs
+# between a developer's machine and CI.
+[[tool.mypy.overrides]]
+module = [
+    "boto3.*",
+    "botocore.*",
+    "azure.*",
+    "google.*",
+    "pyarrow.*",
+    "lance.*",
+    "numpy.*",
+]
+ignore_missing_imports = true
+follow_imports = "skip"
+# `follow_imports` does not apply to .pyi files unless this is set, and numpy ships
+# stubs — so without it mypy still parses them and still reports the syntax error.
+follow_imports_for_stubs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

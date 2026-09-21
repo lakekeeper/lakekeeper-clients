@@ -9,10 +9,10 @@ from pylakekeeper import Client, ClientCredentials
 pytestmark = pytest.mark.integration
 
 TABLE = "image_embeddings"
-# SeaweedFS S3 is `seaweedfs:8333` inside the compose network (what the server vends)
-# but `localhost:8333` from the host where lance runs.
-STORAGE_INTERNAL_HOST = "seaweedfs:8333"
-STORAGE_HOST = "localhost:8333"
+# Silo's S3 API is `silo:9000` inside the compose network (what the server vends)
+# but `localhost:9000` from the host where lance runs.
+STORAGE_INTERNAL_HOST = "silo:9000"
+STORAGE_HOST = "localhost:9100"
 
 
 @pytest.fixture
