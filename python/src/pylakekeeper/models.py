@@ -26,6 +26,27 @@ _EXPIRY_KEYS = (
 _EXPIRY_KEY_PREFIX = "adls.sas-token-expires-at-ms."
 
 
+def credential_expiry(props: dict[str, str]) -> datetime | None:
+    """When vended credentials expire, from their merged properties; ``None`` if unstated."""
+    raw: str | None = None
+    for key in _EXPIRY_KEYS:
+        if value := props.get(key):
+            raw = value
+            break
+    else:
+        for key, value in props.items():
+            if key.startswith(_EXPIRY_KEY_PREFIX) and value:
+                raw = value
+                break
+    if raw is None:
+        return None
+    try:
+        ms = int(raw)
+    except ValueError:
+        return None
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+
+
 def _kebab(name: str) -> str:
     return name.replace("_", "-")
 
@@ -94,24 +115,7 @@ class LoadGenericTableResponse(_WireModel):
         ``None`` means the server sent no expiry (it always does for vended S3, ADLS and
         GCS credentials) — not that the credentials last forever.
         """
-        props = self.credentials
-        raw: str | None = None
-        for key in _EXPIRY_KEYS:
-            if value := props.get(key):
-                raw = value
-                break
-        else:
-            for key, value in props.items():
-                if key.startswith(_EXPIRY_KEY_PREFIX) and value:
-                    raw = value
-                    break
-        if raw is None:
-            return None
-        try:
-            ms = int(raw)
-        except ValueError:
-            return None
-        return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+        return credential_expiry(self.credentials)
 
     def expires_within(self, seconds: float) -> bool:
         """Whether the vended credentials lapse within ``seconds`` from now.

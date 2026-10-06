@@ -7,6 +7,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 from .auth import Auth
+from .datasets import Datasets
 from .errors import ConfigError
 from .generic_tables import GenericTables
 from .transport import Transport
@@ -57,6 +58,8 @@ class Client:
         self._transport = Transport(base_url, auth, project_id=project_id, timeout=timeout)
         #: Generic-tables API surface.
         self.generic_tables = GenericTables(self._transport, warehouse, storage_overrides)
+        #: Datasets API surface: versioned collections of files.
+        self.datasets = Datasets(self._transport, warehouse, storage_overrides, timeout=timeout)
 
     def whoami(self) -> dict[str, Any]:
         """The catalog user for the current token.
@@ -95,6 +98,7 @@ class Client:
 
     def close(self) -> None:
         self._transport.close()
+        self.datasets.close()
 
     def __enter__(self) -> Client:
         return self

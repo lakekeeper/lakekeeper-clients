@@ -72,6 +72,9 @@ general-purpose Iceberg REST client — for the standard Iceberg surface use
 - **Generic Tables**: Register non-Iceberg datasets (Lance, Delta, Parquet, images, HDF5)
   as first-class catalog tables and get `create` / `load` / `list` / `drop` without
   faking Iceberg metadata.
+- **Datasets**: Versioned collections of files — commit, branch, tag, diff, and read any
+  version back byte for byte. Upload a folder as one snapshot, register a bucket prefix
+  in place, keep it in step with `sync()`. See [Datasets](#datasets) below.
 - **Vended Credentials**: `LoadGenericTableResponse` exposes `lance_storage_options` and
   `fsspec_kwargs`, so short-lived credentials flow into your reader with no manual
   key-mapping.
@@ -110,6 +113,23 @@ If you are missing something, we would love to hear about it in a
 `dataset`, but Lakekeeper stores the format as a free identifier — any string matching
 `^[a-z][a-z0-9_-]{0,63}$` is accepted, so pass a plain `str` for anything not listed.
 
+A generic table of format `dataset` is a file drop: the catalog records its location, not
+its files, and keeps no history. For files you want to version, use
+[Datasets](#datasets).
+
+### Dataset Operations
+
+| Operation                        | Status  | Comment                                                    |
+|----------------------------------|:-------:|------------------------------------------------------------|
+| Create / Load / List / Rename / Drop | ![done] | Managed (catalog-allocated prefix) or imported (borrowed prefix) |
+| Commit                           | ![done] | Upload and record in one step; rebases onto concurrent commits that touch other files; resent safely with an idempotency key |
+| Branches and tags                | ![done] | Create, fast-forward, reset, protect, delete               |
+| Diff                             | ![done] | Between any two refs or snapshots                          |
+| Read                             | ![done] | Signed URLs — no storage SDK needed; checked against the recorded etag; pinned to object versions |
+| Download                         | ![done] | Parallel; skips files the directory already holds          |
+| Import / sync a bucket prefix    | ![done] | Inline, or on the task queue with progress                 |
+| Constraints, retention           | ![done] | Content types, size bound; TTL / max-count / manual; expire and restore |
+
 ### Storage Backends
 
 | Storage              | Status  | Comment                                                     |
@@ -127,6 +147,63 @@ If you are missing something, we would love to hear about it in a
 | `pip install 'pylakekeeper[iceberg]'`  | `pyiceberg` — standard Iceberg catalog surface |
 | `pip install 'pylakekeeper[examples]'` | Everything the notebooks and demo scripts need |
 
+# Datasets
+
+A Dataset is a versioned collection of files: every change is an immutable snapshot,
+branches move as you commit, and a tag pins a snapshot for good. The catalog stores the
+file list; the bytes stay in your bucket.
+
+```python
+from pylakekeeper import Client, StaticToken
+
+lk = Client("http://localhost:8181", "<warehouse-uuid>", StaticToken("dev"))
+ds = lk.datasets.create("ml", "images")
+
+with ds.branch("main").commit(summary={"run": "4711"}) as c:   # one snapshot
+    c.upload_dir("local/train", prefix="train/")
+    c.remove("train/stale.jpg")
+
+ds.create_tag("train-2026-10")                 # what the model is trained on
+
+v = ds.tag("train-2026-10")
+for f in v.files(prefix="train/"):
+    ...
+img = v.read("train/0001.jpg")                 # the bytes the snapshot recorded
+v.download("data/")                            # parallel; skips what it already has
+
+for change in ds.diff("train-2026-10", "main"):
+    print(change.change, change.logical_key)
+```
+
+Write-audit-publish: protect `main`, commit to a branch, review the diff, publish with a
+fast-forward — the only move a protected branch takes.
+
+```python
+main = ds.branch("main")
+main.protect()
+etl = ds.create_branch("etl-42")
+with etl.commit() as c:
+    c.put("day=2/part-0.parquet", data)
+assert all(ch.change != "removed" for ch in ds.diff("main", "etl-42"))
+main.fast_forward("etl-42")
+```
+
+Data already in a bucket is registered in place, without copying:
+
+```python
+cams = lk.datasets.create("ml", "cams", location="s3://bucket/landing/cams")
+cams.sync()                                    # inline: mirror the prefix
+cams.queue_import(mode="sync").wait()          # on the task queue, for large prefixes
+```
+
+Writes never overwrite. The catalog gives every commit a fresh folder of its own,
+`data/<id>/`, with a credential that writes there and nowhere else, so the bytes of a
+version never change — on any bucket, versioned or not — and no writer can touch files
+another version records. Reads use signed URLs, so they work on every dataset and storage
+backend and need no storage SDK. Writes need the backend's extra (`pylakekeeper[s3]`,
+`[azure]`, `[gcs]`). A branch handle reads the branch as it stands at each call; a tag
+always reads the same snapshot.
+
 # Examples
 
 Runnable scripts and notebooks live in
@@ -135,6 +212,7 @@ Runnable scripts and notebooks live in
 | Example | Description |
 |---|---|
 | [`generic_tables_lance.py`](https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/examples/generic_tables_lance.py) | Create a Lance generic table, write and read a dataset with vended credentials |
+| [`datasets_training_data.py`](https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/examples/datasets_training_data.py) | Version a folder of images, tag the training set, reproduce it byte for byte |
 | [`dataset_images.py`](https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/examples/dataset_images.py) | Upload image files to a `dataset` generic table via boto3 |
 | [`auth_clientcredentials_delta.ipynb`](https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/examples/auth_clientcredentials_delta.ipynb) | OAuth2 client-credentials + a Delta Lake round-trip |
 | [`auth_devicecode_lance.ipynb`](https://github.com/lakekeeper/lakekeeper-clients/blob/main/python/examples/auth_devicecode_lance.ipynb) | Device-code login from a notebook |

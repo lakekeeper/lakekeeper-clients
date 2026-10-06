@@ -1,8 +1,8 @@
 """Official Lakekeeper client.
 
-A small, standalone client for Lakekeeper's generic-tables API with built-in auth
-(static token or client_credentials with automatic refresh). It is not a general
-Iceberg REST client.
+A small, standalone client for Lakekeeper's generic-tables and Datasets APIs with
+built-in auth (static token or client_credentials with automatic refresh). It is not a
+general Iceberg REST client.
 
     from pylakekeeper import Client, ClientCredentials, StaticToken
 
@@ -24,10 +24,34 @@ from .auth import (
     StaticToken,
 )
 from .client import Client
+from .dataset_models import (
+    CommitFile,
+    Constraints,
+    DatasetFile,
+    DatasetInfo,
+    DatasetRef,
+    FileChange,
+    ImportResult,
+    Retention,
+    Snapshot,
+)
+from .datasets import (
+    Branch,
+    Commit,
+    Dataset,
+    DatasetCredentials,
+    Datasets,
+    DownloadResult,
+    ImportTask,
+    Ref,
+    Tag,
+)
 from .errors import (
     AuthError,
+    CommitConflictError,
     ConfigError,
     ConflictError,
+    IntegrityError,
     LakekeeperError,
     LakekeeperHTTPError,
     NotFoundError,
@@ -41,7 +65,7 @@ from .models import (
     LoadGenericTableResponse,
     StorageCredential,
 )
-from .objects import ObjectStore, object_store_for
+from .objects import ObjectStore, StoredObject, object_store_for
 from .url import encode_namespace, join_namespace, parse_namespace
 
 __all__ = [
@@ -53,11 +77,32 @@ __all__ = [
     "DeviceCodeFlow",
     "DeviceCodePrompt",
     "AuthorizationCodeFlow",
+    # datasets
+    "Datasets",
+    "Dataset",
+    "Ref",
+    "Tag",
+    "Branch",
+    "DatasetCredentials",
+    "Commit",
+    "ImportTask",
+    "DownloadResult",
+    "DatasetInfo",
+    "DatasetRef",
+    "DatasetFile",
+    "CommitFile",
+    "FileChange",
+    "Snapshot",
+    "ImportResult",
+    "Constraints",
+    "Retention",
     # errors
     "LakekeeperError",
     "LakekeeperHTTPError",
     "NotFoundError",
     "ConflictError",
+    "CommitConflictError",
+    "IntegrityError",
     "AuthError",
     "ConfigError",
     # models
@@ -69,6 +114,7 @@ __all__ = [
     "GenericTableFormat",
     # helpers
     "ObjectStore",
+    "StoredObject",
     "object_store_for",
     "ICEBERG_TO_LANCE",
     "iceberg_creds_to_lance",

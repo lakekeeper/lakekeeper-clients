@@ -20,6 +20,8 @@ Storage SDKs are imported lazily, so the core install stays ``httpx`` + ``pydant
 from __future__ import annotations
 
 import mimetypes
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -47,10 +49,27 @@ def _missing_dep(scheme: str, package: str, exc: ImportError) -> ConfigError:
     )
 
 
-class ObjectStore(Protocol):
-    """The four operations a ``dataset`` table needs, relative to its base location."""
+@dataclass(frozen=True)
+class StoredObject:
+    """What storage reported about an object it just stored.
 
-    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> None: ...
+    A dataset commit records both, so a later read can be pinned to these exact bytes
+    (``version_id``) or checked against them (``etag``). Either is ``None`` where the
+    backend does not report it — ``version_id`` needs a versioned bucket.
+    """
+
+    etag: str | None = None
+    version_id: str | None = None
+
+
+class ObjectStore(Protocol):
+    """The operations a ``dataset`` table needs, relative to its base location."""
+
+    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> StoredObject: ...
+
+    def put_file(
+        self, key: str, path: str | Path, *, content_type: str | None = None
+    ) -> StoredObject: ...
 
     def get(self, key: str) -> bytes: ...
 
@@ -90,13 +109,27 @@ class _S3Objects:
     def _full(self, key: str) -> str:
         return f"{self._prefix}/{key.lstrip('/')}" if self._prefix else key.lstrip("/")
 
-    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
-        self._client.put_object(
+    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> StoredObject:
+        resp = self._client.put_object(
             Bucket=self._bucket,
             Key=self._full(key),
             Body=data,
             ContentType=content_type or _guess_content_type(key),
         )
+        return _s3_stored(resp)
+
+    def put_file(
+        self, key: str, path: str | Path, *, content_type: str | None = None
+    ) -> StoredObject:
+        # One PUT streamed from the file, so S3's etag stays the MD5 a reader can check.
+        with open(path, "rb") as body:
+            resp = self._client.put_object(
+                Bucket=self._bucket,
+                Key=self._full(key),
+                Body=body,
+                ContentType=content_type or _guess_content_type(key),
+            )
+        return _s3_stored(resp)
 
     def get(self, key: str) -> bytes:
         body = self._client.get_object(Bucket=self._bucket, Key=self._full(key))["Body"]
@@ -142,15 +175,32 @@ class _AzureObjects:
     def _full(self, key: str) -> str:
         return f"{self._prefix}/{key.lstrip('/')}" if self._prefix else key.lstrip("/")
 
-    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> StoredObject:
         from azure.storage.blob import ContentSettings  # noqa: PLC0415
 
-        self._container.upload_blob(
+        resp = self._container.upload_blob(
             name=self._full(key),
             data=data,
             overwrite=True,
             content_settings=ContentSettings(content_type=content_type or _guess_content_type(key)),
         )
+        return _azure_stored(resp)
+
+    def put_file(
+        self, key: str, path: str | Path, *, content_type: str | None = None
+    ) -> StoredObject:
+        from azure.storage.blob import ContentSettings  # noqa: PLC0415
+
+        with open(path, "rb") as data:
+            resp = self._container.upload_blob(
+                name=self._full(key),
+                data=data,
+                overwrite=True,
+                content_settings=ContentSettings(
+                    content_type=content_type or _guess_content_type(key)
+                ),
+            )
+        return _azure_stored(resp)
 
     def get(self, key: str) -> bytes:
         data: bytes = self._container.download_blob(self._full(key)).readall()
@@ -188,9 +238,17 @@ class _GcsObjects:
     def _full(self, key: str) -> str:
         return f"{self._prefix}/{key.lstrip('/')}" if self._prefix else key.lstrip("/")
 
-    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+    def put(self, key: str, data: bytes, *, content_type: str | None = None) -> StoredObject:
         blob = self._bucket.blob(self._full(key))
         blob.upload_from_string(data, content_type=content_type or _guess_content_type(key))
+        return _gcs_stored(blob)
+
+    def put_file(
+        self, key: str, path: str | Path, *, content_type: str | None = None
+    ) -> StoredObject:
+        blob = self._bucket.blob(self._full(key))
+        blob.upload_from_filename(str(path), content_type=content_type or _guess_content_type(key))
+        return _gcs_stored(blob)
 
     def get(self, key: str) -> bytes:
         data: bytes = self._bucket.blob(self._full(key)).download_as_bytes()
@@ -203,6 +261,23 @@ class _GcsObjects:
 
     def delete(self, key: str) -> None:
         self._bucket.blob(self._full(key)).delete()
+
+
+def _s3_stored(resp: Any) -> StoredObject:
+    resp = resp if isinstance(resp, dict) else {}
+    return StoredObject(etag=resp.get("ETag"), version_id=resp.get("VersionId"))
+
+
+def _azure_stored(resp: Any) -> StoredObject:
+    resp = resp if isinstance(resp, dict) else {}
+    return StoredObject(etag=resp.get("etag"), version_id=resp.get("version_id"))
+
+
+def _gcs_stored(blob: Any) -> StoredObject:
+    # GCS reports a different etag to a download than to an upload, so only the
+    # generation is worth recording: it pins the bytes outright.
+    generation = blob.generation
+    return StoredObject(version_id=str(generation) if generation is not None else None)
 
 
 def object_store_for(location: str, props: dict[str, str]) -> ObjectStore:

@@ -29,6 +29,9 @@ class GenericTableFormat(str, Enum):
     DELTA = "delta"
     VORTEX = "vortex"
     PAIMON = "paimon"
+    #: A file drop: the catalog records the table's location, not its files, and keeps
+    #: no history. To version files, use :attr:`Client.datasets
+    #: <pylakekeeper.Client.datasets>` — a different resource.
     DATASET = "dataset"
 
 
